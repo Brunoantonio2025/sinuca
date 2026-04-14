@@ -471,116 +471,115 @@ export function initGame(canvas, mode, onStateChange) {
     return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
   }
 
-  function onMouseDown(e) {
+  /* ══════════════════════════════════════════════════════════════
+     POINTER EVENTS (mouse + touch + stylus — unified API)
+     canvas.style.touchAction = 'none' obrigatório para PointerEvents
+     ══════════════════════════════════════════════════════════════ */
+  canvas.style.touchAction = 'none'; // bloqueia scroll nativo do browser
+
+  /* Converte coordenadas do evento para espaço do canvas */
+  function getPos(e) {
+    const r  = canvas.getBoundingClientRect();
+    const sx = W / r.width;
+    const sy = H / r.height;
+    return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
+  }
+
+  function onPointerDown(e) {
     if (gs.winner || gs.turnState !== 'idle') return;
-    if (mode === 'pve' && gs.turn === 'AI') return;
-    if (mode === 'online' && gs.turn !== myRole) return;
-    
-    const p = getEventPos(e);
-    
-    // Verifica se está clicando próximo à bola branca em falta
+    if (mode === 'pve'    && gs.turn === 'AI')     return;
+    if (mode === 'online' && gs.turn !== myRole)   return;
+
+    // Captura o pointer para receber pointermove/up mesmo fora do canvas
+    try { canvas.setPointerCapture(e.pointerId); } catch(_) {}
+
+    const p = getPos(e);
+
+    // Arrastar bola branca em falta
     const distToCue = Math.hypot(p.x - gs.cueBall.position.x, p.y - gs.cueBall.position.y);
-    if (gs.cueBallInHand && distToCue < BALL_R * 3) { 
-      gs.draggingCue = true; 
-      moveCueBall(p.x, p.y); 
+    if (gs.cueBallInHand && distToCue < BALL_R * 3) {
+      gs.draggingCue = true;
+      moveCueBall(p.x, p.y);
       onStateChange(snap());
-      return; 
+      return;
     }
-    
+
+    // Iniciar mira
     gs.isAiming = true;
     gs.aimStart = p;
     gs.aimCur   = p;
     gs.powerPct = 0;
-    
-    if (mode === 'online') {
-      peerManager.send({
-        type: 'aim',
-        isAiming: true,
-        aimStart: gs.aimStart,
-        aimCur: gs.aimCur,
-        powerPct: 0,
-      });
-    }
 
+    if (mode === 'online') {
+      peerManager.send({ type: 'aim', isAiming: true, aimStart: gs.aimStart, aimCur: gs.aimCur, powerPct: 0 });
+    }
     onStateChange(snap());
   }
 
-  function onMouseMove(e) {
+  function onPointerMove(e) {
     if (mode === 'online' && gs.turn !== myRole) return;
-    
-    const p = getEventPos(e);
 
-    if (gs.draggingCue) { 
-      moveCueBall(p.x, p.y); 
+    const p = getPos(e);
+
+    if (gs.draggingCue) {
+      moveCueBall(p.x, p.y);
       onStateChange(snap());
-      return; 
+      return;
     }
 
-    // ← CORREÇÃO CRÍTICA: só calcula se estiver mirando
-    if (!gs.isAiming || !gs.aimStart) return;
+    if (!gs.isAiming || !gs.aimStart || !gs.aimCur) return;
 
     gs.aimCur = p;
     const dx = gs.aimStart.x - p.x;
     const dy = gs.aimStart.y - p.y;
     gs.powerPct = Math.min(Math.hypot(dx, dy) / 160, 1);
-    
-    if (mode === 'online') {
-      peerManager.send({
-        type: 'aim',
-        isAiming: true,
-        aimStart: gs.aimStart,
-        aimCur: gs.aimCur,
-        powerPct: gs.powerPct,
-      });
-    }
 
+    if (mode === 'online') {
+      peerManager.send({ type: 'aim', isAiming: true, aimStart: gs.aimStart, aimCur: gs.aimCur, powerPct: gs.powerPct });
+    }
     onStateChange(snap());
   }
 
-  function onMouseUp() {
+  function onPointerUp(e) {
     if (mode === 'online' && gs.turn !== myRole) return;
 
-    if (gs.draggingCue) { 
-      gs.draggingCue = false; 
-      gs.cueBallInHand = false; 
+    if (gs.draggingCue) {
+      gs.draggingCue  = false;
+      gs.cueBallInHand = false;
       onStateChange(snap());
-      return; 
+      return;
     }
+
     if (!gs.isAiming || !gs.aimStart || !gs.aimCur) {
       gs.isAiming = false;
       return;
     }
-    
+
+    const sAim = gs.aimStart;
+    const sCur = gs.aimCur;
     gs.isAiming = false;
-    const dx = gs.aimStart.x - gs.aimCur.x;
-    const dy = gs.aimStart.y - gs.aimCur.y;
+    gs.aimStart = null;
+    gs.aimCur   = null;
     const power = gs.powerPct;
     gs.powerPct = 0;
-    
+
+    const dx = sAim.x - sCur.x;
+    const dy = sAim.y - sCur.y;
+
     if (Math.hypot(dx, dy) > 5) {
-      if (mode === 'online') {
-        peerManager.send({ type: 'shoot', dx, dy, power });
-      }
+      if (mode === 'online') peerManager.send({ type: 'shoot', dx, dy, power });
       shoot(dx, dy, power);
     } else {
-      gs.aimStart = null;
-      gs.aimCur = null;
-      if (mode === 'online') {
-        peerManager.send({ type: 'aim', isAiming: false, aimStart: null, aimCur: null, powerPct: 0 });
-      }
+      if (mode === 'online') peerManager.send({ type: 'aim', isAiming: false, aimStart: null, aimCur: null, powerPct: 0 });
     }
     onStateChange(snap());
   }
 
-  // ── Listeners Mouse ─────────────────────────────────────────
-  window.addEventListener('mousedown', onMouseDown);
-  window.addEventListener('mousemove', onMouseMove);
-  window.addEventListener('mouseup',   onMouseUp);
-
-  // ── Listeners Touch (Mobile) ────────────────────────────────
-  canvas.addEventListener('touchstart',  (e) => { e.preventDefault(); onMouseDown(e); }, { passive: false });
-  canvas.addEventListener('touchmove',   (e) => { e.preventDefault(); onMouseMove(e); }, { passive: false });
-  canvas.addEventListener('touchend',    (e) => { e.preventDefault(); onMouseUp(e);   }, { passive: false });
+  // Registra apenas no canvas (capture automático via setPointerCapture)
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup',   onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp); // finger cancelled (ex: phone call)
 
   function moveCueBall(x, y) {
     x = Math.max(FX + BALL_R + 4, Math.min(W - FX - BALL_R - 4, x));
@@ -872,7 +871,11 @@ export function initGame(canvas, mode, onStateChange) {
     
     let currentPull = 0;
     const aimInterval = setInterval(() => {
-      if (gs.winner || gs.turnState !== 'idle') { clearInterval(aimInterval); gs.isAiming = false; return; }
+      if (gs.winner || gs.turnState !== 'idle' || !gs.aimCur || !gs.aimStart) { 
+        clearInterval(aimInterval); 
+        gs.isAiming = false; 
+        return; 
+      }
       currentPull += 4;
       gs.aimCur.x = gs.cueBall.position.x - Math.cos(bestShot.angle) * currentPull;
       gs.aimCur.y = gs.cueBall.position.y - Math.sin(bestShot.angle) * currentPull;
@@ -1607,14 +1610,11 @@ export function initGame(canvas, mode, onStateChange) {
     stop() {
       cancelAnimationFrame(animId);
       Engine.clear(engine);
-      // Remove mouse listeners
-      window.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup',   onMouseUp);
-      // Remove touch listeners
-      canvas.removeEventListener('touchstart',  onMouseDown);
-      canvas.removeEventListener('touchmove',   onMouseMove);
-      canvas.removeEventListener('touchend',    onMouseUp);
+      // Remove pointer listeners
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerup',   onPointerUp);
+      canvas.removeEventListener('pointercancel', onPointerUp);
       // Restaurar scroll do documento
       document.removeEventListener('touchmove', _preventScroll);
       document.body.style.overflow = '';
