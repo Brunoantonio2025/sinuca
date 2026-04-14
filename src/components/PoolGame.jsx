@@ -135,7 +135,7 @@ function PlayerPanel({ label, type, potted, pottedBalls = [], active, avatarLett
 }
 
 /* ═══════════════════════════════════════════════════════════════════ */
-export default function PoolGame({ mode, onExit }) {
+export default function PoolGame({ mode, playerName, onExit }) {
   const canvasRef = useRef(null);
   const engineRef = useRef(null);
   const [gs, setGs] = useState({
@@ -150,7 +150,11 @@ export default function PoolGame({ mode, onExit }) {
     return () => cleanupGame(engineRef.current);
   }, [mode]);
 
-  const p2Label  = mode === 'pve' ? 'AI Bot' : 'Player 2';
+  // Nome real: se online, host = P1, guest = P2; senão "Player X"
+  const myName   = playerName || 'Jogador';
+  const isHost   = mode !== 'online' || (typeof peerManager !== 'undefined' && peerManager.isHost);
+  const p1Label  = isHost ? myName : 'Player 1';
+  const p2Label  = mode === 'pve' ? 'AI Bot' : (!isHost ? myName : 'Player 2');
   const p1Active = gs.turn === 'Player 1';
   const p2Active = !p1Active;
 
@@ -160,6 +164,7 @@ export default function PoolGame({ mode, onExit }) {
       alignItems:'center', justifyContent:'center',
       background:'radial-gradient(ellipse at 50% 0%, #0f2027 0%, #0a0a14 70%)',
       fontFamily:"'Inter','Segoe UI',Arial,sans-serif", overflow:'hidden', position:'relative',
+      touchAction:'none', userSelect:'none',
     }}>
       {/* Background decoration */}
       <div style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'hidden' }}>
@@ -176,8 +181,8 @@ export default function PoolGame({ mode, onExit }) {
         gap: 10
       }}>
         {/* Player 1 */}
-        <PlayerPanel label="Player 1" type={gs.p1Type}
-          potted={gs.p1Potted} pottedBalls={gs.p1PottedBalls || []} active={p1Active} avatarLetter="P" />
+        <PlayerPanel label={p1Label} type={gs.p1Type}
+          potted={gs.p1Potted} pottedBalls={gs.p1PottedBalls || []} active={p1Active} avatarLetter={myName[0]?.toUpperCase() || 'P'} />
 
         {/* Centre - Compact on Mobile */}
         <div style={{ 
@@ -213,13 +218,15 @@ export default function PoolGame({ mode, onExit }) {
         width: '100%',
         display: 'flex',
         justifyContent: 'center',
-        padding: '0 10px'
+        padding: '0 10px',
+        touchAction:'none',
       }}>
         <div style={{
           position: 'relative',
           width: '100%',
           maxWidth: 1000,
-          aspectRatio: '1000/520', // Mantém a proporção da mesa
+          aspectRatio: '1000/520',
+          touchAction:'none',
         }}>
           <canvas
             ref={canvasRef}
@@ -284,7 +291,7 @@ export default function PoolGame({ mode, onExit }) {
         maxWidth: '90%',
         textAlign: 'center'
       }}>
-        <span>🎯 Clique e arraste para trás para mirar • Solte para tacar</span>
+        <span>🎯 Arraste para trás para mirar • Solte para tacar</span>
       </div>
 
       {/* Voice Chat active in online mode */}

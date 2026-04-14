@@ -1600,16 +1600,30 @@ export function initGame(canvas, mode, onStateChange) {
 
   render();
 
+  /* ── Bloquear scroll do documento enquanto joga (iOS/Android Safari) */
+  const _preventScroll = (e) => e.preventDefault();
+  document.addEventListener('touchmove', _preventScroll, { passive: false });
+  document.body.style.overflow = 'hidden';
+  document.documentElement.style.overflow = 'hidden';
+
   /* ── cleanup ─────────────────────────────────────────────── */
   return {
     engine,
     stop() {
       cancelAnimationFrame(animId);
       Engine.clear(engine);
-      /* properly remove NAMED listener references */
+      // Remove mouse listeners
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup',   onMouseUp);
+      // Remove touch listeners
+      canvas.removeEventListener('touchstart',  onMouseDown);
+      canvas.removeEventListener('touchmove',   onMouseMove);
+      canvas.removeEventListener('touchend',    onMouseUp);
+      // Restaurar scroll do documento
+      document.removeEventListener('touchmove', _preventScroll);
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     },
   };
 }
