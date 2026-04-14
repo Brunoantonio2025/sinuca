@@ -169,33 +169,36 @@ export default function PoolGame({ mode, onExit }) {
 
       {/* ── top HUD ────────────────────────────────────────────────── */}
       <div style={{
-        display:'flex', alignItems:'center', justifyContent:'space-between',
+        display:'flex', 
+        flexDirection: window.innerWidth < 700 ? 'column' : 'row',
+        alignItems:'center', justifyContent:'space-between',
         width:'100%', maxWidth:1040, padding:'0 16px', marginBottom:14, zIndex:10,
+        gap: 10
       }}>
         {/* Player 1 */}
         <PlayerPanel label="Player 1" type={gs.p1Type}
           potted={gs.p1Potted} pottedBalls={gs.p1PottedBalls || []} active={p1Active} avatarLetter="P" />
 
-        {/* Centre */}
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
+        {/* Centre - Compact on Mobile */}
+        <div style={{ 
+          display:'flex', 
+          flexDirection: window.innerWidth < 700 ? 'row' : 'column',
+          alignItems:'center', gap:10 
+        }}>
           <div style={{
             background:'rgba(0,0,0,0.5)', border:'1px solid rgba(255,255,255,0.1)',
-            borderRadius:12, padding:'6px 22px', textAlign:'center',
+            borderRadius:12, padding:'4px 15px', textAlign:'center',
           }}>
             <div style={{
-              fontSize:13, color:'#f5c518', fontWeight:700, letterSpacing:'0.15em',
-              textTransform:'uppercase', marginBottom:2,
+              fontSize: 11, color:'#f5c518', fontWeight:700, letterSpacing:'0.1em',
+              textTransform:'uppercase',
             }}>Mesa 064</div>
-            <div style={{ fontSize:12, color:'#94a3b8' }}>{gs.message}</div>
+            <div style={{ fontSize: 10, color:'#94a3b8' }}>{gs.message}</div>
           </div>
           <button onClick={onExit} style={{
             background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)',
-            color:'#94a3b8', fontSize:12, borderRadius:8, padding:'4px 14px', cursor:'pointer',
-            transition:'all 0.2s',
-          }}
-            onMouseEnter={e=>e.currentTarget.style.color='#fff'}
-            onMouseLeave={e=>e.currentTarget.style.color='#94a3b8'}
-          >← Menu</button>
+            color:'#94a3b8', fontSize:11, borderRadius:8, padding:'4px 12px', cursor:'pointer',
+          }}>← Sair</button>
         </div>
 
         {/* Player 2 / AI */}
@@ -204,69 +207,71 @@ export default function PoolGame({ mode, onExit }) {
       </div>
 
       {/* ── game area ──────────────────────────────────────────────── */}
-      <div style={{ position:'relative', zIndex:10 }}>
-        <canvas
-          ref={canvasRef}
-          width={1000}
-          height={520}
-          style={{
-            display:'block',
-            borderRadius:12,
-            boxShadow:'0 20px 80px rgba(0,0,0,0.8), 0 0 0 3px rgba(255,255,255,0.05)',
-            cursor:'crosshair',
-            maxWidth:'calc(100vw - 80px)',
-          }}
-        />
+      <div style={{ 
+        position:'relative', 
+        zIndex:10,
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        padding: '0 10px'
+      }}>
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: 1000,
+          aspectRatio: '1000/520', // Mantém a proporção da mesa
+        }}>
+          <canvas
+            ref={canvasRef}
+            width={1000}
+            height={520}
+            style={{
+              width: '100%',
+              height: '100%',
+              display:'block',
+              borderRadius:12,
+              boxShadow:'0 20px 80px rgba(0,0,0,0.8), 0 0 0 3px rgba(255,255,255,0.05)',
+              cursor:'crosshair',
+              touchAction: 'none' // Importante para mobile não rolar a tela jogando
+            }}
+          />
 
-
-        {/* ── game over overlay ─────────────────────────────────── */}
-        {gs.winner && (
-          <div style={{
-            position:'absolute', inset:0, borderRadius:12,
-            background:'rgba(0,0,0,0.82)', backdropFilter:'blur(8px)',
-            display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:20,
-          }}>
-            {/* 8-ball icon */}
+          {/* ── game over overlay ─────────────────────────────────── */}
+          {gs.winner && (
             <div style={{
-              width:90, height:90, borderRadius:'50%',
-              background:'linear-gradient(135deg,#222,#000)',
-              border:'4px solid rgba(255,255,255,0.12)',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              boxShadow:'0 0 40px rgba(0,0,0,0.8)',
+              position:'absolute', inset:0, borderRadius:12,
+              background:'rgba(0,0,0,0.82)', backdropFilter:'blur(8px)',
+              display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:20,
             }}>
-              <span style={{ fontSize:44 }}>🎱</span>
-            </div>
-            <div style={{ textAlign:'center' }}>
               <div style={{
-                fontSize:46, fontWeight:900, color:'#fff',
-                textShadow:'0 0 30px rgba(245,197,24,0.6)',
-                letterSpacing:'-0.03em',
-              }}>{gs.winner} Wins!</div>
-              <div style={{ fontSize:16, color:'#94a3b8', marginTop:6 }}>Match complete</div>
+                width:70, height:70, borderRadius:'50%',
+                background:'linear-gradient(135deg,#222,#000)',
+                border:'4px solid rgba(255,255,255,0.12)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+              }}>
+                <span style={{ fontSize:32 }}>🎱</span>
+              </div>
+              <div style={{ textAlign:'center' }}>
+                <div style={{
+                  fontSize:36, fontWeight:900, color:'#fff',
+                  textShadow:'0 0 30px rgba(245,197,24,0.6)',
+                }}>{gs.winner} Venceu!</div>
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <button onClick={() => window.location.reload()} style={{
+                  background:'linear-gradient(135deg,#f5c518,#e8820c)',
+                  color:'#000', border:'none', borderRadius:10,
+                  padding:'10px 24px', fontSize:14, fontWeight:800, cursor:'pointer',
+                }}>Jogar Denovo</button>
+                <button onClick={onExit} style={{
+                  background:'rgba(255,255,255,0.08)', color:'#fff',
+                  border:'1px solid rgba(255,255,255,0.15)', borderRadius:10,
+                  padding:'10px 24px', fontSize:14, fontWeight:700, cursor:'pointer',
+                }}>Sair</button>
+              </div>
             </div>
-            <div style={{ display:'flex', gap:16 }}>
-              <button onClick={() => window.location.reload()} style={{
-                background:'linear-gradient(135deg,#f5c518,#e8820c)',
-                color:'#000', border:'none', borderRadius:12,
-                padding:'13px 34px', fontSize:15, fontWeight:800, cursor:'pointer',
-                boxShadow:'0 6px 24px rgba(245,197,24,0.35)',
-                transition:'transform 0.15s',
-              }}
-                onMouseEnter={e=>e.currentTarget.style.transform='scale(1.04)'}
-                onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}
-              >Play Again</button>
-              <button onClick={onExit} style={{
-                background:'rgba(255,255,255,0.08)', color:'#fff',
-                border:'2px solid rgba(255,255,255,0.15)', borderRadius:12,
-                padding:'13px 34px', fontSize:15, fontWeight:700, cursor:'pointer',
-                transition:'transform 0.15s',
-              }}
-                onMouseEnter={e=>e.currentTarget.style.transform='scale(1.04)'}
-                onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}
-              >Exit</button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ── instructions ───────────────────────────────────────────── */}
@@ -275,12 +280,11 @@ export default function PoolGame({ mode, onExit }) {
         display:'flex', alignItems:'center', gap:8,
         background:'rgba(0,0,0,0.35)', border:'1px solid rgba(255,255,255,0.07)',
         borderRadius:30, padding:'6px 18px',
-        fontSize:12, color:'#64748b',
+        fontSize:10, color:'#64748b',
+        maxWidth: '90%',
+        textAlign: 'center'
       }}>
-        <span>🎯</span>
-        <span>Click & drag away from the cue ball to aim · release to shoot</span>
-        <span>·</span>
-        <span>⚪ Drag cue ball after scratch</span>
+        <span>🎯 Clique e arraste para trás para mirar • Solte para tacar</span>
       </div>
 
       {/* Voice Chat active in online mode */}
