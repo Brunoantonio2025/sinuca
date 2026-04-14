@@ -29,24 +29,24 @@ class PeerManager {
 
   async startHost(roomId, onReady) {
     this.isHost = true;
-    // Configura servidores STUN para conexão global
+    const globalRoomId = 'SINUCA_V1_' + roomId; // Prefixo único para seu app
+    
     const config = {
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
         ]
       }
     };
-    this.peer = new Peer(roomId, config);
+    
+    this.peer = new Peer(globalRoomId, config);
     
     this.peer.on('open', (id) => {
       onReady(id);
     });
 
     this.peer.on('connection', (conn) => {
-      if (this.conn) return; 
       this.conn = conn;
       this.setupConn();
       if (this.onConnected) this.onConnected();
@@ -60,31 +60,34 @@ class PeerManager {
       });
     });
     
+    // Tenta microfone mas não trava se falhar (comum em HTTP)
     await this.initMicrophone();
   }
 
-  async join(hostId) {
+  async join(roomId) {
     this.isHost = false;
+    const globalRoomId = 'SINUCA_V1_' + roomId;
+    
     const config = {
       config: {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
         ]
       }
     };
+    
     this.peer = new Peer(config);
     
     return new Promise((resolve, reject) => {
       this.peer.on('open', async () => {
-        this.conn = this.peer.connect(hostId);
+        this.conn = this.peer.connect(globalRoomId);
         this.setupConn();
         
         await this.initMicrophone();
         
         if (this.myStream) {
-          this.call = this.peer.call(hostId, this.myStream);
+          this.call = this.peer.call(globalRoomId, this.myStream);
           this.call.on('stream', (remoteStream) => {
             if (this.onVoice) this.onVoice(remoteStream);
           });
