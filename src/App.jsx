@@ -9,12 +9,13 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [status, setStatus] = useState('');
   
+  const [currentTableId, setCurrentTableId] = useState(null);
+  
   // Custom Table states
   const [activeTables, setActiveTables] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTableName, setNewTableName] = useState('');
   const [newTableValue, setNewTableValue] = useState('');
-  const [myHostedTableId, setMyHostedTableId] = useState(null);
 
   // Sincroniza mesas ativas com o Firebase
   useEffect(() => {
@@ -26,24 +27,32 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Limpa tabela se fechar a janela sendo Host
+  // LIMPEZA AUTOMÁTICA: Libera a mesa se o usuário sair ou recarregar
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (myHostedTableId) {
-        // Tentativa de limpar ao sair
-        deleteDoc(doc(db, 'tables', myHostedTableId)).catch(() => {});
+    const cleanup = async () => {
+      if (currentTableId) {
+        // Marcamos como 'open' para outros poderem entrar
+        await setDoc(doc(db, 'tables', currentTableId), { status: 'open' }, { merge: true });
       }
     };
+
+    const handleBeforeUnload = (e) => {
+      cleanup();
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [myHostedTableId]);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      cleanup();
+    };
+  }, [currentTableId]);
 
   // Easter egg para virar Admin (typing ou via URL)
   useEffect(() => {
-    // Checa se acessou por localhost:5173/admin
+    // Checa se acessou por localhost:5173/admin ou VPS/admin
     if (window.location.pathname.toLowerCase().includes('/admin')) {
       setIsAdmin(true);
-      setStatus('Modo Administrador via URL. Você agora pode criar as mesas.');
+      setStatus('Modo Administrador Ativo.');
     }
 
     let buffer = '';
@@ -54,7 +63,7 @@ export default function App() {
       
       if (buffer.toLowerCase().endsWith('/admin')) {
         setIsAdmin(true);
-        setStatus('Modo Administrador Desbloqueado! Você agora pode criar as mesas.');
+        setStatus('Modo Administrador Desbloqueado!');
         setTimeout(() => setStatus(''), 4000);
       }
     };
@@ -74,7 +83,7 @@ export default function App() {
         name: newTableName, 
         value: newTableValue || 'Amistoso',
         baseHue: Math.floor(Math.random() * 360),
-        status: 'open' // Mesa disponível para o primeiro jogador
+        status: 'open' 
       };
       
       await setDoc(doc(db, 'tables', tableId), tableObj);
@@ -82,10 +91,10 @@ export default function App() {
       setShowCreateModal(false);
       setNewTableName('');
       setNewTableValue('');
-      setStatus(`Mesa ${tableObj.name} criada com sucesso!`);
-      setTimeout(() => setStatus(''), 3000);
+      setStatus(`Mesa ${tableObj.name} criada!`);
+      setTimeout(() => setStatus(''), 2000);
     } catch (e) {
-      setStatus(`Erro ao criar mesa: ${e.message}`);
+      setStatus(`Erro: ${e.message}`);
     }
   };
 
@@ -96,41 +105,39 @@ export default function App() {
       setGameState('playing');
     };
 
-    // Se a mesa está 'open', o primeiro a clicar vira o HOST técnico do jogo
     if (table.status === 'open') {
-      setStatus(`Iniciando mesa como primeiro jogador...`);
+      setStatus(`Iniciando mesa...`);
       try {
         await peerManager.startHost(table.id, async () => {
-          // Atualiza o status para 'waiting' (aguardando o segundo jogador)
-          await setDoc(doc(db, 'tables', table.id), { ...table, status: 'waiting' });
-          setStatus(`Aguardando oponente entrar...`);
+          await setDoc(doc(db, 'tables', table.id), { status: 'waiting' }, { merge: true });
+          setCurrentTableId(table.id);
+          setStatus(`Aguardando oponente...`);
         });
       } catch (e) {
-        setStatus("Erro ao iniciar mesa.");
+        setStatus("Erro ao iniciar. Tente outra mesa.");
       }
     } 
-    // Se a mesa está 'waiting', o segundo entra como convidado
     else if (table.status === 'waiting') {
-      setStatus(`Entrando na partida...`);
+      setStatus(`Conectando...`);
       try {
         await peerManager.join(table.id);
-        // Opcional: Marcar como 'full'
-        await setDoc(doc(db, 'tables', table.id), { ...table, status: 'full' });
+        await setDoc(doc(db, 'tables', table.id), { status: 'full' }, { merge: true });
+        setCurrentTableId(table.id);
       } catch (e) {
-        setStatus(`Erro ao conectar: Mesa pode estar cheia ou offline.`);
+        setStatus(`Erro ao conectar. Mesa cheia?`);
       }
     } else {
-      setStatus("Esta mesa já está lotada.");
+      setStatus("Esta mesa está em jogo.");
     }
   };
 
   const handleDeleteTable = async (tableId) => {
     try {
       await deleteDoc(doc(db, 'tables', tableId));
-      setStatus("Mesa excluída com sucesso.");
-      setTimeout(() => setStatus(''), 2000);
+      setStatus("Mesa excluída.");
+      setTimeout(() => setStatus(''), 1000);
     } catch (e) {
-      setStatus("Erro ao excluir mesa.");
+      setStatus("Erro ao excluir.");
     }
   };
 
@@ -298,11 +305,11 @@ export default function App() {
 
       {gameState === 'playing' && (
         <PoolGame mode="online" onExit={async () => {
-          peerManager.disconnect();
-          if (myHostedTableId) {
-            await deleteDoc(doc(db, 'tables', myHostedTableId)).catch(() => {});
-            setMyHostedTableId(null);
+          if (currentTableId) {
+            await setDoc(doc(db, 'tables', currentTableId), { status: 'open' }, { merge: true });
+            setCurrentTableId(null);
           }
+          peerManager.disconnect();
           setGameState('menu');
           setStatus('');
         }} />
