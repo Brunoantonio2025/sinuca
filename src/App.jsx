@@ -99,13 +99,13 @@ export default function App() {
   };
 
   const handleJoinTable = async (table) => {
-    if (isAdmin) return; 
+    // Agora o Admin também pode clicar para testar se quiser
     
     peerManager.onConnected = () => {
       setGameState('playing');
     };
 
-    if (table.status === 'open') {
+    if (table.status === 'open' || table.status === undefined) {
       setStatus(`Iniciando mesa...`);
       try {
         await peerManager.startHost(table.id, async () => {
@@ -138,6 +138,20 @@ export default function App() {
       setTimeout(() => setStatus(''), 1000);
     } catch (e) {
       setStatus("Erro ao excluir.");
+    }
+  };
+
+  const handleResetAllTables = async () => {
+    setStatus("Resetando todas as mesas...");
+    try {
+      const promises = activeTables.map(t => 
+        setDoc(doc(db, 'tables', t.id), { status: 'open' }, { merge: true })
+      );
+      await Promise.all(promises);
+      setStatus("Todas as mesas estão LIVRES agora!");
+      setTimeout(() => setStatus(''), 2000);
+    } catch (e) {
+      setStatus("Erro ao resetar mesas.");
     }
   };
 
@@ -194,20 +208,30 @@ export default function App() {
             {isAdmin ? (
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 30 }}>
                 {!showCreateModal ? (
-                  <button 
-                    onClick={() => setShowCreateModal(true)}
-                    style={{
-                      padding: '20px 40px', fontSize: 20, fontWeight: 'bold',
-                      background: 'linear-gradient(135deg, #10b981, #059669)',
-                      border: 'none', borderRadius: 30, color: '#fff',
-                      cursor: 'pointer', boxShadow: '0 10px 30px rgba(16, 185, 129, 0.4)',
-                      transition: 'transform 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
-                    onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
-                  >
-                    ➕ Criar Nova Mesa
-                  </button>
+                    <div style={{ display:'flex', gap:10 }}>
+                      <button 
+                        onClick={() => setShowCreateModal(true)}
+                        style={{
+                          padding: '16px 30px', fontSize: 16, fontWeight: 'bold',
+                          background: 'linear-gradient(135deg, #10b981, #059669)',
+                          border: 'none', borderRadius: 20, color: '#fff',
+                          cursor: 'pointer', boxShadow: '0 8px 20px rgba(16, 185, 129, 0.3)',
+                        }}
+                      >
+                        ➕ Criar Mesa
+                      </button>
+                      <button 
+                        onClick={handleResetAllTables}
+                        style={{
+                          padding: '16px 30px', fontSize: 16, fontWeight: 'bold',
+                          background: 'linear-gradient(135deg, #ec4899, #be185d)',
+                          border: 'none', borderRadius: 20, color: '#fff',
+                          cursor: 'pointer', boxShadow: '0 8px 20px rgba(236, 72, 153, 0.3)',
+                        }}
+                      >
+                        🔄 Resetar Todas
+                      </button>
+                    </div>
                 ) : (
                   <div style={{
                     background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
@@ -285,6 +309,17 @@ export default function App() {
               </div>
             )}
           </div>
+          {!isAdmin && (
+            <button 
+              onClick={handleResetAllTables}
+              style={{
+                marginTop: 40, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.3)', padding: '8px 20px', borderRadius: 20, cursor: 'pointer', fontSize: 11
+              }}
+            >
+              Mesa travada? Clique aqui para destravar o jogo
+            </button>
+          )}
 
           {/* Status Message */}
           <div style={{ height: 40, marginTop: 20 }}>

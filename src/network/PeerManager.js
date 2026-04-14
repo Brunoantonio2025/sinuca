@@ -20,10 +20,14 @@ class PeerManager {
   }
 
   async initMicrophone() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.warn("Microfone indisponível (HTTP ou sem suporte).");
+      return;
+    }
     try {
       this.myStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch (e) {
-      console.warn("Sem permissão ou sem microfone disponível.", e);
+      console.warn("Sem permissão para o microfone.", e);
     }
   }
 
