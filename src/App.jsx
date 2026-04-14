@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import PoolGame from './components/PoolGame';
 import { peerManager } from './network/PeerManager';
 import { db } from './firebase';
-import { collection, onSnapshot, setDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, setDoc, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 /* ─── Chaves de sessão no localStorage ──────────────────────────── */
 const SESSION_KEY  = 'sinuca_session';
@@ -206,7 +206,9 @@ export default function App() {
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'tables'), (snapshot) => {
       const tables = [];
-      snapshot.forEach(d => tables.push(d.data()));
+      snapshot.forEach(d => {
+        tables.push({ id: d.id, ...d.data() }); // Usa o ID real do documento sempre
+      });
       setActiveTables(tables);
     });
     return () => unsub();
@@ -216,7 +218,8 @@ export default function App() {
   useEffect(() => {
     const cleanup = async () => {
       if (currentTableId) {
-        await setDoc(doc(db, 'tables', currentTableId), { status: 'open' }, { merge: true });
+        // Usa updateDoc em vez de setDoc+merge para nÃ£o ressuscitar mesas deletadas
+        try { await updateDoc(doc(db, 'tables', currentTableId), { status: 'open' }); } catch(e) {}
       }
     };
     window.addEventListener('beforeunload', cleanup);
@@ -356,7 +359,7 @@ export default function App() {
   /* ── Sair do jogo ───────────────────────────────────────────────── */
   const handleExit = async () => {
     if (currentTableId) {
-      await setDoc(doc(db, 'tables', currentTableId), { status: 'open' }, { merge: true });
+      try { await updateDoc(doc(db, 'tables', currentTableId), { status: 'open' }); } catch(e) {}
       setCurrentTableId(null);
     }
     clearSession();
