@@ -47,7 +47,7 @@ export default function NetworkLobby({ onConnected, onCancel }) {
     setStatus('Conectando e abrindo microfone...');
     try {
       await peerManager.join(joinId.trim().toUpperCase());
-    } catch (e) {
+    } catch {
       setStatus('Erro de Conexão. Verifique o código.');
     }
   };

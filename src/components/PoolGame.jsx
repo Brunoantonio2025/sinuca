@@ -87,7 +87,6 @@ function TinyBall({ number, stripe, potted }) {
 /* ── player panel ────────────────────────────────────────────────── */
 function PlayerPanel({ label, type, potted, pottedBalls = [], active, avatarLetter }) {
   const balls   = type === 'SOLIDS' ? SOLID_BALLS : type === 'STRIPES' ? STRIPE_BALLS : [];
-  const isStripe = type === 'STRIPES';
   const total   = balls.length;
   const typeColor = type === 'SOLIDS' ? '#f5c518' : type === 'STRIPES' ? '#60a5fa' : '#888';
 

@@ -8,8 +8,8 @@ import { collection, onSnapshot, setDoc, doc, deleteDoc } from 'firebase/firesto
 const SESSION_KEY  = 'sinuca_session';
 const NAME_KEY     = 'sinuca_player_name';
 
-function saveSession(tableId, tableData, role) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ tableId, tableData, role, ts: Date.now() }));
+function saveSession(tableId, tableData, role, name) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ tableId, tableData, role, name, ts: Date.now() }));
 }
 function clearSession() {
   localStorage.removeItem(SESSION_KEY);
@@ -19,7 +19,9 @@ function loadSession() {
     const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
     // Expira após 2 horas
     if (s && Date.now() - s.ts < 2 * 60 * 60 * 1000) return s;
-  } catch {}
+  } catch {
+    // ignore parse error
+  }
   return null;
 }
 
@@ -194,7 +196,10 @@ export default function App() {
   /* ── Ao montar: verifica sessão salva ─────────────────────────── */
   useEffect(() => {
     const s = loadSession();
-    if (s) setSavedSession(s);
+    if (s) {
+      // Defer setState to next tick to avoid cascading render warning
+      requestAnimationFrame(() => setSavedSession(s));
+    }
   }, []);
 
   /* ── Sincroniza mesas com Firebase ──────────────────────────────── */
@@ -224,7 +229,8 @@ export default function App() {
   /* ── Admin easter egg ─────────────────────────────────────────── */
   useEffect(() => {
     if (window.location.pathname.toLowerCase().includes('/admin')) {
-      setIsAdmin(true);
+      // Defer to avoid setState in effect
+      requestAnimationFrame(() => setIsAdmin(true));
     }
     let buffer = '';
     const handleKey = (e) => {
@@ -245,6 +251,10 @@ export default function App() {
   const doJoinTable = async (table, name) => {
     setPlayerName(name);
 
+    // ✅ Salva a sessão IMEDIATAMENTE — antes de qualquer chamada async
+    // Assim, se o usuário recarregar em qualquer momento, o banner aparece
+    saveSession(table.id, table, table.status === 'waiting' ? 'guest' : 'host', name);
+
     peerManager.onConnected = () => {
       setGameState('playing');
     };
@@ -255,10 +265,10 @@ export default function App() {
         await peerManager.startHost(table.id, async () => {
           await setDoc(doc(db, 'tables', table.id), { status: 'waiting', p1: name }, { merge: true });
           setCurrentTableId(table.id);
-          saveSession(table.id, table, 'host');
           setStatus('Aguardando oponente...');
         });
-      } catch (e) {
+      } catch {
+        clearSession(); // Se falhar, limpa a sessão salva
         setStatus('Erro ao iniciar. Tente outra mesa.');
       }
     } else if (table.status === 'waiting') {
@@ -267,8 +277,7 @@ export default function App() {
         await peerManager.join(table.id);
         await setDoc(doc(db, 'tables', table.id), { status: 'full', p2: name }, { merge: true });
         setCurrentTableId(table.id);
-        saveSession(table.id, table, 'guest');
-      } catch (e) {
+      } catch {
         setStatus('Erro ao conectar. Mesa cheia?');
       }
     } else {
@@ -295,11 +304,13 @@ export default function App() {
     setSavedSession(null);
     if (!s) return;
 
-    // Encontra a mesa no Firebase
+    // Encontra a mesa no Firebase (status atual) ou usa dados da sessão
     const table = activeTables.find(t => t.id === s.tableId) || s.tableData;
     if (!table) { setStatus('Mesa não encontrada.'); return; }
 
-    const name = localStorage.getItem(NAME_KEY) || playerName || 'Jogador';
+    // Nome vem da sessão salva → localStorage → estado → fallback
+    const name = s.name || localStorage.getItem(NAME_KEY) || playerName || 'Jogador';
+    setPlayerName(name);
     doJoinTable(table, name);
   };
 

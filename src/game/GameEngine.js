@@ -90,7 +90,6 @@ export function initGame(canvas, mode, onStateChange) {
   const world  = engine.world;
   const ctx    = canvas.getContext('2d');
   let   animId;
-  let   framesSinceShoot = -1;
 
   const myRole = mode === 'online' ? (peerManager.isHost ? 'Player 1' : 'Player 2') : null;
 
@@ -270,7 +269,9 @@ export function initGame(canvas, mode, onStateChange) {
       src.connect(g);
       g.connect(masterGain);
       src.start();
-    } catch (_) {}
+    } catch {
+      // ignore playback error
+    }
   }
 
   // Colisão bola × bola
@@ -456,14 +457,6 @@ export function initGame(canvas, mode, onStateChange) {
   console.log(`[PHYSICS] Initialized with ${gs.balls.length} balls and ${Composite.allBodies(world).length} bodies in world.`);
   onStateChange(snap());
 
-  /* ── canvas coordinate helper ───────────────────────────── */
-  function toCanvas(e) {
-    const r  = canvas.getBoundingClientRect();
-    const sx = W / r.width;
-    const sy = H / r.height;
-    return { x:(e.clientX - r.left)*sx, y:(e.clientY - r.top)*sy };
-  }
-
   /* ── input ─────────────────────────────────────────────── */
   function getEventPos(e) {
     // touchend: e.touches fica vazio — usa changedTouches como fallback
@@ -544,7 +537,7 @@ export function initGame(canvas, mode, onStateChange) {
     onStateChange(snap());
   }
 
-  function onMouseUp(e) {
+  function onMouseUp() {
     if (mode === 'online' && gs.turn !== myRole) return;
 
     if (gs.draggingCue) { 
@@ -624,7 +617,6 @@ export function initGame(canvas, mode, onStateChange) {
     gs.pottedThisTurn = [];
     gs.settleFrames   = 0;
     gs.shotsTaken++;
-    framesSinceShoot  = 0; // Trigger diagnostics
     onStateChange(snap());
   }
 
@@ -653,11 +645,11 @@ export function initGame(canvas, mode, onStateChange) {
         }
       }
 
-      trigPocket(ball, pi);
+      trigPocket(ball);
     });
   });
 
-  function trigPocket(ball, pi) {
+  function trigPocket(ball) {
     // Evita processar a mesma bola duas vezes (ex: bola branca que já saiu)
     if (gs.fallingBalls.find(f => f.id===ball.id)) return;
     if (!gs.balls.find(b => b.id===ball.id)) return; // já foi removida
@@ -847,7 +839,6 @@ export function initGame(canvas, mode, onStateChange) {
       POCKETS.forEach(poc => {
         const dx = poc.x - ball.position.x;
         const dy = poc.y - ball.position.y;
-        const distToPocket = Math.hypot(dx, dy);
         const angleToPocket = Math.atan2(dy, dx);
 
         const impactX = ball.position.x - Math.cos(angleToPocket) * (BALL_R * 2);
@@ -890,11 +881,15 @@ export function initGame(canvas, mode, onStateChange) {
 
       if (currentPull >= bestShot.pull) {
         clearInterval(aimInterval);
+        const sAim = gs.aimStart;
+        const sCur = gs.aimCur;
         gs.isAiming = false;
+        gs.aimStart = null;
+        gs.aimCur   = null;
         gs.powerPct = 0;
-        const sDx = gs.aimStart.x - gs.aimCur.x;
-        const sDy = gs.aimStart.y - gs.aimCur.y;
-        shoot(sDx, sDy);
+        if (sAim && sCur) {
+          shoot(sAim.x - sCur.x, sAim.y - sCur.y);
+        }
       }
     }, 25);
   }
@@ -1389,7 +1384,7 @@ export function initGame(canvas, mode, onStateChange) {
 
   /* ── aiming / cue stick ──────────────────────────────────── */
   function drawAim() {
-    if (!gs.isAiming || gs.turnState !== 'idle' || !gs.aimStart) return;
+    if (!gs.isAiming || gs.turnState !== 'idle' || !gs.aimStart || !gs.aimCur) return;
     const dx = gs.aimStart.x - gs.aimCur.x;
     const dy = gs.aimStart.y - gs.aimCur.y;
     const dist = Math.hypot(dx, dy);
@@ -1567,7 +1562,7 @@ export function initGame(canvas, mode, onStateChange) {
   }
 
   /* ── physics debug ─────────────────────────────────────── */
-  function drawDebug() {
+  function _drawDebug() {
     if (!gs.debug) return;
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.4)';
     ctx.lineWidth = 1;
@@ -1595,7 +1590,7 @@ export function initGame(canvas, mode, onStateChange) {
     gs.fallingBalls.forEach(f => drawBall(f, f.scale));
     drawAim();
     drawInHand();
-    // drawDebug();
+    // _drawDebug(); // uncomment for physics debugging
   }
 
   render();
