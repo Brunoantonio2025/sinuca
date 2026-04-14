@@ -466,8 +466,12 @@ export function initGame(canvas, mode, onStateChange) {
 
   /* ── input ─────────────────────────────────────────────── */
   function getEventPos(e) {
-    // Suporta tanto mouse quanto touch
-    const src = e.touches ? e.touches[0] : e;
+    // touchend: e.touches fica vazio — usa changedTouches como fallback
+    const src = (e.touches && e.touches.length > 0)
+      ? e.touches[0]
+      : (e.changedTouches && e.changedTouches.length > 0)
+        ? e.changedTouches[0]
+        : e;
     const r  = canvas.getBoundingClientRect();
     const sx = W / r.width;
     const sy = H / r.height;
