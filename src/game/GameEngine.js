@@ -465,33 +465,43 @@ export function initGame(canvas, mode, onStateChange) {
   }
 
   /* ── input ─────────────────────────────────────────────── */
+  function getEventPos(e) {
+    // Suporta tanto mouse quanto touch
+    const src = e.touches ? e.touches[0] : e;
+    const r  = canvas.getBoundingClientRect();
+    const sx = W / r.width;
+    const sy = H / r.height;
+    return { x: (src.clientX - r.left) * sx, y: (src.clientY - r.top) * sy };
+  }
+
   function onMouseDown(e) {
     if (gs.winner || gs.turnState !== 'idle') return;
     if (mode === 'pve' && gs.turn === 'AI') return;
     if (mode === 'online' && gs.turn !== myRole) return;
     
-    const p = toCanvas(e);
+    const p = getEventPos(e);
     
-    // Check if clicking near cue ball for dragging
+    // Verifica se está clicando próximo à bola branca em falta
     const distToCue = Math.hypot(p.x - gs.cueBall.position.x, p.y - gs.cueBall.position.y);
-    if (gs.cueBallInHand && distToCue < BALL_R * 2) { 
+    if (gs.cueBallInHand && distToCue < BALL_R * 3) { 
       gs.draggingCue = true; 
       moveCueBall(p.x, p.y); 
+      onStateChange(snap());
       return; 
     }
     
     gs.isAiming = true;
     gs.aimStart = p;
     gs.aimCur   = p;
+    gs.powerPct = 0;
     
     if (mode === 'online') {
       peerManager.send({
         type: 'aim',
-        isAiming: gs.isAiming,
+        isAiming: true,
         aimStart: gs.aimStart,
         aimCur: gs.aimCur,
-        powerPct: gs.powerPct,
-        cuePos: gs.draggingCue ? gs.cueBall.position : null,
+        powerPct: 0,
       });
     }
 
@@ -500,12 +510,18 @@ export function initGame(canvas, mode, onStateChange) {
 
   function onMouseMove(e) {
     if (mode === 'online' && gs.turn !== myRole) return;
-    const p = toCanvas(e);
+    
+    const p = getEventPos(e);
+
     if (gs.draggingCue) { 
       moveCueBall(p.x, p.y); 
       onStateChange(snap());
       return; 
     }
+
+    // ← CORREÇÃO CRÍTICA: só calcula se estiver mirando
+    if (!gs.isAiming || !gs.aimStart) return;
+
     gs.aimCur = p;
     const dx = gs.aimStart.x - p.x;
     const dy = gs.aimStart.y - p.y;
@@ -514,11 +530,10 @@ export function initGame(canvas, mode, onStateChange) {
     if (mode === 'online') {
       peerManager.send({
         type: 'aim',
-        isAiming: gs.isAiming,
+        isAiming: true,
         aimStart: gs.aimStart,
         aimCur: gs.aimCur,
         powerPct: gs.powerPct,
-        cuePos: gs.draggingCue ? gs.cueBall.position : null,
       });
     }
 
@@ -527,13 +542,17 @@ export function initGame(canvas, mode, onStateChange) {
 
   function onMouseUp(e) {
     if (mode === 'online' && gs.turn !== myRole) return;
+
     if (gs.draggingCue) { 
       gs.draggingCue = false; 
       gs.cueBallInHand = false; 
       onStateChange(snap());
       return; 
     }
-    if (!gs.isAiming) return;
+    if (!gs.isAiming || !gs.aimStart || !gs.aimCur) {
+      gs.isAiming = false;
+      return;
+    }
     
     gs.isAiming = false;
     const dx = gs.aimStart.x - gs.aimCur.x;
@@ -547,21 +566,24 @@ export function initGame(canvas, mode, onStateChange) {
       }
       shoot(dx, dy, power);
     } else {
+      gs.aimStart = null;
+      gs.aimCur = null;
       if (mode === 'online') {
-        peerManager.send({
-          type: 'aim',
-          isAiming: false,
-          aimStart: null, aimCur: null, powerPct: 0
-        });
+        peerManager.send({ type: 'aim', isAiming: false, aimStart: null, aimCur: null, powerPct: 0 });
       }
     }
     onStateChange(snap());
   }
 
-  // Use window for all to ensure capture during drags off canvas
+  // ── Listeners Mouse ─────────────────────────────────────────
   window.addEventListener('mousedown', onMouseDown);
   window.addEventListener('mousemove', onMouseMove);
   window.addEventListener('mouseup',   onMouseUp);
+
+  // ── Listeners Touch (Mobile) ────────────────────────────────
+  canvas.addEventListener('touchstart',  (e) => { e.preventDefault(); onMouseDown(e); }, { passive: false });
+  canvas.addEventListener('touchmove',   (e) => { e.preventDefault(); onMouseMove(e); }, { passive: false });
+  canvas.addEventListener('touchend',    (e) => { e.preventDefault(); onMouseUp(e);   }, { passive: false });
 
   function moveCueBall(x, y) {
     x = Math.max(FX + BALL_R + 4, Math.min(W - FX - BALL_R - 4, x));
